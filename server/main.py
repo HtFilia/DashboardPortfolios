@@ -1,13 +1,12 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Dict, Set
-from models import Strategy, Position, FinancialInstrument
 import asyncio
-from contextlib import asynccontextmanager
-import logging
 import signal
 import sys
-import random
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from typing import List, Set
+from contextlib import asynccontextmanager
+import logging
+from simulator import PriceSimulator
 
 # Configure logging to stdout
 logging.basicConfig(
@@ -24,71 +23,67 @@ active_connections: List[WebSocket] = []
 selected_strategies: Set[int] = set()
 broadcast_task = None
 stop_broadcast = False
+price_simulator = None
 
-# Sample data (same as frontend for now)
-instruments: Dict[str, FinancialInstrument] = {
-    "AAPL": {
-        "internalCode": "AAPL",
-        "bloombergTicker": "AAPL US",
-        "reutersTicker": "AAPL.O",
-        "instrumentType": "Equity",
-        "currency": "USD"
-    },
-    "MSFT": {
-        "internalCode": "MSFT",
-        "bloombergTicker": "MSFT US",
-        "reutersTicker": "MSFT.O",
-        "instrumentType": "Equity",
-        "currency": "USD"
-    },
-    "GOOGL": {
-        "internalCode": "GOOGL",
-        "bloombergTicker": "GOOGL US",
-        "reutersTicker": "GOOGL.O",
-        "instrumentType": "Equity",
-        "currency": "USD"
-    },
-    "TSLA": {
-        "internalCode": "TSLA",
-        "bloombergTicker": "TSLA US",
-        "reutersTicker": "TSLA.O",
-        "instrumentType": "Equity",
-        "currency": "USD"
-    },
-    "AMZN": {
-        "internalCode": "AMZN",
-        "bloombergTicker": "AMZN US",
-        "reutersTicker": "AMZN.O",
-        "instrumentType": "Equity",
-        "currency": "USD"
-    }
+# Initial prices
+initial_prices = {
+    "AAPL": 180.0,
+    "MSFT": 350.0,
+    "GOOGL": 140.0,
+    "TSLA": 200.0,
+    "AMZN": 170.0
 }
 
-def create_position(instrument: FinancialInstrument, quantity: float, dailyPnL: float, totalPnL: float) -> Position:
-    return {
-        "instrument": instrument,
-        "quantity": quantity,
-        "dailyPnL": dailyPnL,
-        "totalPnL": totalPnL
-    }
-
-# Sample strategies data
-strategies: List[Strategy] = [
+# Sample data (same as frontend for now)
+strategies = [
     {
         "id": 1,
         "name": "Long-Term Growth",
         "selected": False,
         "positions": [
-            create_position(instruments["AAPL"], 100, -20.156497489679737, -1738.6820035429564),
-            create_position(instruments["MSFT"], 50, 406.3260936421216, 3328.5706040017653),
-            create_position(instruments["GOOGL"], 25, 49.27212870692941, 851.4151565983233)
+            {
+                "instrument": {
+                    "internalCode": "AAPL",
+                    "bloombergTicker": "AAPL US",
+                    "reutersTicker": "AAPL.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": 100,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            },
+            {
+                "instrument": {
+                    "internalCode": "MSFT",
+                    "bloombergTicker": "MSFT US",
+                    "reutersTicker": "MSFT.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": 50,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            },
+            {
+                "instrument": {
+                    "internalCode": "GOOGL",
+                    "bloombergTicker": "GOOGL US",
+                    "reutersTicker": "GOOGL.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": 25,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            }
         ],
         "riskMetrics": {
-            "var95": 1971.7720862429685,
-            "var99": 394.3544172485937,
-            "maxDrawdown": 3943.544172485937,
-            "exposure": 39435.44172485937,
-            "riskLimit": 59153.16258728905
+            "var95": 0.0,
+            "var99": 0.0,
+            "maxDrawdown": 0.0,
+            "exposure": 0.0,
+            "riskLimit": 0.0
         }
     },
     {
@@ -96,16 +91,49 @@ strategies: List[Strategy] = [
         "name": "Value Investing",
         "selected": False,
         "positions": [
-            create_position(instruments["MSFT"], 75, 609.4891404631824, 4992.855906002649),
-            create_position(instruments["TSLA"], 30, -236.80641785510318, -4537.268646917977),
-            create_position(instruments["AMZN"], 40, 244.24864303803247, 1374.2329314315225)
+            {
+                "instrument": {
+                    "internalCode": "MSFT",
+                    "bloombergTicker": "MSFT US",
+                    "reutersTicker": "MSFT.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": 75,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            },
+            {
+                "instrument": {
+                    "internalCode": "TSLA",
+                    "bloombergTicker": "TSLA US",
+                    "reutersTicker": "TSLA.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": 30,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            },
+            {
+                "instrument": {
+                    "internalCode": "AMZN",
+                    "bloombergTicker": "AMZN US",
+                    "reutersTicker": "AMZN.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": 40,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            }
         ],
         "riskMetrics": {
-            "var95": 1983.3465682823055,
-            "var99": 396.6693136564611,
-            "maxDrawdown": 3966.693136564611,
-            "exposure": 39666.93136564611,
-            "riskLimit": 59500.39704846917
+            "var95": 0.0,
+            "var99": 0.0,
+            "maxDrawdown": 0.0,
+            "exposure": 0.0,
+            "riskLimit": 0.0
         }
     },
     {
@@ -113,16 +141,49 @@ strategies: List[Strategy] = [
         "name": "Dividend Focus",
         "selected": False,
         "positions": [
-            create_position(instruments["AAPL"], 50, -10.078248744839868, -243.8410017714782),
-            create_position(instruments["MSFT"], 100, 812.6521872842432, 8157.8912080035325),
-            create_position(instruments["AMZN"], 20, 122.12432151901623, 1437.616465715761)
+            {
+                "instrument": {
+                    "internalCode": "AAPL",
+                    "bloombergTicker": "AAPL US",
+                    "reutersTicker": "AAPL.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": 50,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            },
+            {
+                "instrument": {
+                    "internalCode": "MSFT",
+                    "bloombergTicker": "MSFT US",
+                    "reutersTicker": "MSFT.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": 100,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            },
+            {
+                "instrument": {
+                    "internalCode": "AMZN",
+                    "bloombergTicker": "AMZN US",
+                    "reutersTicker": "AMZN.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": 20,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            }
         ],
         "riskMetrics": {
-            "var95": 2416.234913002921,
-            "var99": 483.24698260058426,
-            "maxDrawdown": 4832.469826005842,
-            "exposure": 48324.69826005842,
-            "riskLimit": 72487.04739008764
+            "var95": 0.0,
+            "var99": 0.0,
+            "maxDrawdown": 0.0,
+            "exposure": 0.0,
+            "riskLimit": 0.0
         }
     },
     {
@@ -130,16 +191,49 @@ strategies: List[Strategy] = [
         "name": "Sector Rotation",
         "selected": False,
         "positions": [
-            create_position(instruments["TSLA"], 50, -394.67736309183863, -8812.364411529961),
-            create_position(instruments["GOOGL"], 40, 78.83540593108705, 2963.0142505573176),
-            create_position(instruments["AMZN"], 30, 183.18648227852435, 2156.1746985736418)
+            {
+                "instrument": {
+                    "internalCode": "TSLA",
+                    "bloombergTicker": "TSLA US",
+                    "reutersTicker": "TSLA.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": 50,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            },
+            {
+                "instrument": {
+                    "internalCode": "GOOGL",
+                    "bloombergTicker": "GOOGL US",
+                    "reutersTicker": "GOOGL.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": 40,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            },
+            {
+                "instrument": {
+                    "internalCode": "AMZN",
+                    "bloombergTicker": "AMZN US",
+                    "reutersTicker": "AMZN.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": 30,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            }
         ],
         "riskMetrics": {
-            "var95": 1028.3672262558887,
-            "var99": 205.67344525117772,
-            "maxDrawdown": 2056.7344525117774,
-            "exposure": 20567.344525117773,
-            "riskLimit": 30851.016787676657
+            "var95": 0.0,
+            "var99": 0.0,
+            "maxDrawdown": 0.0,
+            "exposure": 0.0,
+            "riskLimit": 0.0
         }
     },
     {
@@ -147,17 +241,61 @@ strategies: List[Strategy] = [
         "name": "Market Neutral",
         "selected": False,
         "positions": [
-            create_position(instruments["AAPL"], 100, -20.156497489679737, -487.9320035429564),
-            create_position(instruments["TSLA"], -100, 789.3547261836773, 16374.978823059924),
-            create_position(instruments["GOOGL"], 50, 98.54425741385882, 2703.080313196647),
-            create_position(instruments["AMZN"], -50, -305.3108037975406, -2718.0411642894032)
+            {
+                "instrument": {
+                    "internalCode": "AAPL",
+                    "bloombergTicker": "AAPL US",
+                    "reutersTicker": "AAPL.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": 100,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            },
+            {
+                "instrument": {
+                    "internalCode": "TSLA",
+                    "bloombergTicker": "TSLA US",
+                    "reutersTicker": "TSLA.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": -100,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            },
+            {
+                "instrument": {
+                    "internalCode": "GOOGL",
+                    "bloombergTicker": "GOOGL US",
+                    "reutersTicker": "GOOGL.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": 50,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            },
+            {
+                "instrument": {
+                    "internalCode": "AMZN",
+                    "bloombergTicker": "AMZN US",
+                    "reutersTicker": "AMZN.O",
+                    "instrumentType": "Equity",
+                    "currency": "USD"
+                },
+                "quantity": -50,
+                "dailyPnL": 0.0,
+                "totalPnL": 0.0
+            }
         ],
         "riskMetrics": {
-            "var95": 2654.7171918769022,
-            "var99": 530.9434383753804,
-            "maxDrawdown": 5309.4343837538045,
-            "exposure": 53094.34383753804,
-            "riskLimit": 79641.51575630707
+            "var95": 0.0,
+            "var99": 0.0,
+            "maxDrawdown": 0.0,
+            "exposure": 0.0,
+            "riskLimit": 0.0
         }
     }
 ]
@@ -166,11 +304,32 @@ async def broadcast_updates():
     global stop_broadcast
     while not stop_broadcast:
         try:
-            # Update P&L values
+            # Update prices
+            new_prices = price_simulator.update_prices()
+            
+            # Update positions and metrics
             for strategy in strategies:
+                # Update position P&L
                 for position in strategy["positions"]:
-                    position["dailyPnL"] = random.uniform(-500, 500)
-                    position["totalPnL"] = random.uniform(-10000, 10000)
+                    symbol = position["instrument"]["internalCode"]
+                    old_price = position.get("last_price", initial_prices[symbol])
+                    new_price = new_prices[symbol]
+                    
+                    # Calculate P&L
+                    price_change = new_price - old_price
+                    position["dailyPnL"] = position["quantity"] * price_change
+                    position["totalPnL"] += position["dailyPnL"]
+                    position["last_price"] = new_price
+                
+                # Update strategy metrics
+                metrics = price_simulator.calculate_position_metrics(strategy["positions"])
+                strategy["riskMetrics"] = {
+                    "var95": metrics["var95"],
+                    "var99": metrics["var99"],
+                    "maxDrawdown": metrics["max_drawdown"],
+                    "exposure": metrics["exposure"],
+                    "riskLimit": metrics["risk_limit"]
+                }
 
             # Prepare update message
             message = {
@@ -226,10 +385,14 @@ def handle_shutdown(signum, frame):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global broadcast_task
+    global broadcast_task, price_simulator
+    # Initialize price simulator
+    price_simulator = PriceSimulator({}, initial_prices)
+    
     # Start broadcast task
     broadcast_task = asyncio.create_task(broadcast_updates())
     
+    # Setup signal handlers
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGBREAK, handle_shutdown)
     
@@ -240,10 +403,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Enable CORS
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -256,14 +419,13 @@ async def websocket_endpoint(websocket: WebSocket):
     logger.info(f"New WebSocket connection established. Total connections: {len(active_connections)}")
     
     try:
-        # Send initial state
+        # Send initial data
         initial_message = {
             "type": "initial",
             "data": {
                 "strategies": strategies
             }
         }
-        logger.info("Sending initial state to client")
         await websocket.send_json(initial_message)
         
         # Handle messages from client
@@ -281,11 +443,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 break
     except WebSocketDisconnect:
         logger.info("Client disconnected")
-        active_connections.remove(websocket)
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
-        active_connections.remove(websocket)
     finally:
+        active_connections.remove(websocket)
         try:
             await websocket.close()
         except Exception as e:
