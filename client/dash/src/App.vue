@@ -1,5 +1,15 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
+import { onMounted, onUnmounted } from 'vue';
+import { RouterLink, RouterView } from 'vue-router';
+import { websocketService } from './services/websocket';
+
+onMounted(() => {
+  websocketService.connect();
+});
+
+onUnmounted(() => {
+  websocketService.disconnect();
+});
 </script>
 
 <template>
