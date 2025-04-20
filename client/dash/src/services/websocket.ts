@@ -1,63 +1,71 @@
-import { ref } from 'vue';
-import type { Strategy, WebSocketMessage } from '../types';
+import { ref, onUnmounted } from 'vue';
+import type { WebSocketMessage } from '@/types';
 
-class WebSocketService {
-    private ws: WebSocket | null = null;
-    private updateCallbacks: ((data: WebSocketMessage) => void)[] = [];
-    public strategies = ref<Strategy[]>([]);
+const ws = ref<WebSocket | null>(null);
+const messageHandlers = ref<Set<(data: WebSocketMessage) => void>>(new Set());
 
-    connect() {
-        if (this.ws) {
-            return; // Already connected
-        }
+export function useWebSocket() {
+    const connect = () => {
+        if (ws.value) return;
 
-        this.ws = new WebSocket('ws://localhost:9001/ws');
+        ws.value = new WebSocket('ws://localhost:9001/ws');
 
-        this.ws.onopen = () => {
+        ws.value.onopen = () => {
             console.log('WebSocket connected');
         };
 
-        this.ws.onmessage = (event) => {
-            const data = JSON.parse(event.data) as WebSocketMessage;
-            this.strategies.value = data.data.strategies;
-            this.updateCallbacks.forEach(callback => callback(data));
-        };
-
-        this.ws.onclose = () => {
-            console.log('WebSocket disconnected');
-            this.ws = null;
-        };
-
-        this.ws.onerror = (error) => {
-            console.error('WebSocket error:', error);
-        };
-    }
-
-    disconnect() {
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
-        }
-    }
-
-    onUpdate(callback: (data: WebSocketMessage) => void) {
-        this.updateCallbacks.push(callback);
-        return () => {
-            const index = this.updateCallbacks.indexOf(callback);
-            if (index !== -1) {
-                this.updateCallbacks.splice(index, 1);
+        ws.value.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data) as WebSocketMessage;
+                messageHandlers.value.forEach(handler => handler(data));
+            } catch (error) {
+                console.error('Error parsing WebSocket message:', error);
             }
         };
-    }
 
-    toggleStrategy(strategyId: number) {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify({
-                type: 'toggle',
-                data: { strategyId }
+        ws.value.onerror = (error) => {
+            console.error('WebSocket error:', error);
+        };
+
+        ws.value.onclose = () => {
+            console.log('WebSocket disconnected');
+            ws.value = null;
+        };
+    };
+
+    const disconnect = () => {
+        if (ws.value) {
+            ws.value.close();
+            ws.value = null;
+        }
+    };
+
+    const onUpdate = (handler: (data: WebSocketMessage) => void) => {
+        messageHandlers.value.add(handler);
+        return () => messageHandlers.value.delete(handler);
+    };
+
+    const toggleStrategy = (strategyId: number) => {
+        if (ws.value?.readyState === WebSocket.OPEN) {
+            ws.value.send(JSON.stringify({
+                type: 'toggle_strategy',
+                strategyId
             }));
         }
-    }
+    };
+
+    // Cleanup on unmount
+    onUnmounted(() => {
+        disconnect();
+        messageHandlers.value.clear();
+    });
+
+    return {
+        connect,
+        disconnect,
+        onUpdate,
+        toggleStrategy
+    };
 }
 
-export const websocketService = new WebSocketService(); 
+export const websocketService = useWebSocket(); 

@@ -1,118 +1,161 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue';
-import { websocketService } from '../services/websocket';
-import type { Strategy, Position } from '../types';
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useWebSocket } from '@/services/websocket'
+import type { Strategy, Position } from '@/types'
 
-const strategies = ref<Strategy[]>([]);
-const selectedStrategies = ref<Set<number>>(new Set());
+const { connect, disconnect, onUpdate } = useWebSocket()
 
-// Subscribe to WebSocket updates
-onMounted(() => {
-  const unsubscribe = websocketService.onUpdate((data) => {
-    if (data.type === 'initial') {
-      strategies.value = data.data.strategies;
-    } else if (data.type === 'update') {
-      // Update existing strategies with new data
-      data.data.strategies.forEach(updatedStrategy => {
-        const index = strategies.value.findIndex(s => s.id === updatedStrategy.id);
-        if (index !== -1) {
-          strategies.value[index] = {
-            ...strategies.value[index],
-            ...updatedStrategy,
-            selected: strategies.value[index].selected // Preserve selection state
-          };
-        }
-      });
-    }
-  });
+const strategies = ref<Strategy[]>([])
+const prices = ref<Record<string, number>>({})
 
-  onUnmounted(() => {
-    unsubscribe();
-  });
-});
+// Computed property to get all positions from selected strategies
+const selectedPositions = computed(() => {
+  return strategies.value
+    .filter(strategy => strategy.selected)
+    .flatMap(strategy => strategy.positions)
+})
 
+// Computed property to aggregate positions by symbol
 const aggregatedPositions = computed(() => {
-  const positionMap = new Map<string, Position>();
+  const aggregated: Record<string, Position> = {}
   
-  // Get all positions from selected strategies
-  strategies.value.forEach(strategy => {
-    if (selectedStrategies.value.has(strategy.id)) {
-      strategy.positions.forEach(position => {
-        const symbol = position.instrument.internalCode;
-        const existingPosition = positionMap.get(symbol);
-        
-        if (existingPosition) {
-          // Aggregate positions with the same symbol
-          positionMap.set(symbol, {
-            ...existingPosition,
-            quantity: existingPosition.quantity + position.quantity,
-            dailyPnL: existingPosition.dailyPnL + position.dailyPnL,
-            totalPnL: existingPosition.totalPnL + position.totalPnL
-          });
-        } else {
-          // Add new position
-          positionMap.set(symbol, { ...position });
-        }
-      });
+  selectedPositions.value.forEach(position => {
+    const symbol = position.instrument.internalCode
+    if (!aggregated[symbol]) {
+      aggregated[symbol] = {
+        ...position,
+        quantity: 0,
+        lastPrice: position.lastPrice
+      }
     }
-  });
+    
+    // Aggregate quantities
+    aggregated[symbol].quantity += position.quantity
+  })
   
-  return Array.from(positionMap.values());
-});
+  return Object.values(aggregated)
+})
 
-const toggleStrategy = (strategy: Strategy) => {
-  if (selectedStrategies.value.has(strategy.id)) {
-    selectedStrategies.value.delete(strategy.id);
-  } else {
-    selectedStrategies.value.add(strategy.id);
+// Helper functions for position calculations
+const computePositionValue = (position: Position) => {
+  return position.quantity * position.lastPrice
+}
+
+const computePositionDailyPnL = (position: Position) => {
+  return position.quantity * (position.lastPrice - position.openingPrice)
+}
+
+const computePositionTotalPnL = (position: Position) => {
+  return position.quantity * (position.lastPrice - position.entryPrice)
+}
+
+// Helper functions for strategy calculations
+const computeStrategyExposure = (strategy: Strategy) => {
+  return strategy.positions.reduce((total, position) => {
+    return total + Math.abs(position.quantity * position.lastPrice)
+  }, 0)
+}
+
+const computeStrategyDailyPnL = (strategy: Strategy) => {
+  return strategy.positions.reduce((total, position) => {
+    return total + computePositionDailyPnL(position)
+  }, 0)
+}
+
+const computeStrategyTotalPnL = (strategy: Strategy) => {
+  return strategy.positions.reduce((total, position) => {
+    return total + computePositionTotalPnL(position)
+  }, 0)
+}
+
+// Helper functions for formatting and styling
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(value)
+}
+
+const getPnLClass = (value: number) => {
+  return {
+    'positive': value > 0,
+    'negative': value < 0
   }
-  websocketService.toggleStrategy(strategy.id);
-};
+}
 
-const isStrategySelected = (strategyId: number) => {
-  return selectedStrategies.value.has(strategyId);
-};
+const toggleStrategy = (strategyId: number) => {
+  const strategy = strategies.value.find(s => s.id === strategyId)
+  if (strategy) {
+    strategy.selected = !strategy.selected
+  }
+}
+
+// WebSocket handling
+onMounted(() => {
+  connect()
+  
+  onUpdate((data) => {
+    if (data.type === 'initial' || data.type === 'update') {
+      // Preserve selection state when updating strategies
+      const newStrategies = data.data.strategies.map((newStrategy: Strategy) => {
+        const existingStrategy = strategies.value.find(s => s.id === newStrategy.id)
+        return {
+          ...newStrategy,
+          selected: existingStrategy?.selected ?? false
+        }
+      })
+      strategies.value = newStrategies
+      prices.value = data.data.prices
+    }
+  })
+})
+
+onUnmounted(() => {
+  disconnect()
+})
 </script>
 
 <template>
   <div class="dashboard">
-    <div class="strategy-cards">
-      <div 
-        v-for="strategy in strategies" 
+    <div class="strategies-grid">
+      <div
+        v-for="strategy in strategies"
         :key="strategy.id"
         class="strategy-card"
-        :class="{ selected: isStrategySelected(strategy.id) }"
-        @click="toggleStrategy(strategy)"
+        :class="{ selected: strategy.selected }"
+        @click="toggleStrategy(strategy.id)"
       >
         <h3>{{ strategy.name }}</h3>
         <div class="metrics">
           <div class="metric">
-            <span class="label">Total P&L</span>
-            <span class="value" :class="{ positive: strategy.positions.reduce((sum, pos) => sum + pos.totalPnL, 0) >= 0 }">
-              {{ strategy.positions.reduce((sum, pos) => sum + pos.totalPnL, 0).toFixed(2) }}
+            <span class="label">Total P&L:</span>
+            <span :class="getPnLClass(computeStrategyTotalPnL(strategy))">
+              {{ formatCurrency(computeStrategyTotalPnL(strategy)) }}
             </span>
           </div>
           <div class="metric">
-            <span class="label">Daily P&L</span>
-            <span class="value" :class="{ positive: strategy.positions.reduce((sum, pos) => sum + pos.dailyPnL, 0) >= 0 }">
-              {{ strategy.positions.reduce((sum, pos) => sum + pos.dailyPnL, 0).toFixed(2) }}
+            <span class="label">Daily P&L:</span>
+            <span :class="getPnLClass(computeStrategyDailyPnL(strategy))">
+              {{ formatCurrency(computeStrategyDailyPnL(strategy)) }}
             </span>
           </div>
           <div class="metric">
-            <span class="label">Exposure</span>
-            <span class="value">{{ strategy.riskMetrics.exposure.toFixed(2) }}</span>
+            <span class="label">Exposure:</span>
+            <span>{{ formatCurrency(computeStrategyExposure(strategy)) }}</span>
           </div>
         </div>
       </div>
     </div>
 
-    <div v-if="aggregatedPositions.length > 0" class="positions-table">
-      <h2>Selected Positions</h2>
+    <div class="positions-table">
+      <h2>Positions</h2>
       <table>
         <thead>
           <tr>
-            <th>Instrument</th>
+            <th>Symbol</th>
             <th>Quantity</th>
+            <th>Current Price</th>
+            <th>Position Value</th>
             <th>Daily P&L</th>
             <th>Total P&L</th>
           </tr>
@@ -121,8 +164,14 @@ const isStrategySelected = (strategyId: number) => {
           <tr v-for="position in aggregatedPositions" :key="position.instrument.internalCode">
             <td>{{ position.instrument.internalCode }}</td>
             <td>{{ position.quantity }}</td>
-            <td :class="{ positive: position.dailyPnL >= 0 }">{{ position.dailyPnL.toFixed(2) }}</td>
-            <td :class="{ positive: position.totalPnL >= 0 }">{{ position.totalPnL.toFixed(2) }}</td>
+            <td>{{ formatCurrency(position.lastPrice) }}</td>
+            <td>{{ formatCurrency(computePositionValue(position)) }}</td>
+            <td :class="getPnLClass(computePositionDailyPnL(position))">
+              {{ formatCurrency(computePositionDailyPnL(position)) }}
+            </td>
+            <td :class="getPnLClass(computePositionTotalPnL(position))">
+              {{ formatCurrency(computePositionTotalPnL(position)) }}
+            </td>
           </tr>
         </tbody>
       </table>
@@ -132,77 +181,58 @@ const isStrategySelected = (strategyId: number) => {
 
 <style scoped>
 .dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
+  padding: 20px;
 }
 
-.strategy-cards {
+.strategies-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1rem;
+  gap: 20px;
+  margin-bottom: 30px;
 }
 
 .strategy-card {
-  background: white;
+  border: 1px solid #ddd;
   border-radius: 8px;
-  padding: 1rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 15px;
   cursor: pointer;
-  transition: all 0.2s;
-}
-
-.strategy-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
 }
 
 .strategy-card.selected {
-  border: 2px solid var(--primary-color);
-  background-color: #f8f9fa;
+  border-color: #4CAF50;
+  background-color: #f8fff8;
 }
 
 .strategy-card h3 {
-  margin-bottom: 1rem;
-  color: var(--primary-color);
+  margin: 0 0 10px 0;
 }
 
 .metrics {
-  display: grid;
-  gap: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 
 .metric {
   display: flex;
   justify-content: space-between;
-  align-items: center;
 }
 
 .label {
-  color: var(--secondary-color);
-  font-size: 0.9rem;
+  color: #666;
 }
 
-.value {
-  font-weight: 600;
-  color: var(--primary-color);
+.positive {
+  color: #4CAF50;
 }
 
-.value.positive {
-  color: #28a745;
+.negative {
+  color: #f44336;
 }
 
 .positions-table {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-}
-
-.positions-table h2 {
-  padding: 1rem;
-  border-bottom: 1px solid #eee;
-  color: var(--primary-color);
+  margin-top: 30px;
 }
 
 table {
@@ -211,22 +241,17 @@ table {
 }
 
 th, td {
-  padding: 1rem;
+  padding: 12px;
   text-align: left;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid #ddd;
 }
 
 th {
-  background-color: #f8f9fa;
-  font-weight: 600;
-  color: var(--primary-color);
+  background-color: #f5f5f5;
+  font-weight: bold;
 }
 
-tbody tr:hover {
-  background-color: #f8f9fa;
-}
-
-.positive {
-  color: #28a745;
+tr:hover {
+  background-color: #f5f5f5;
 }
 </style> 

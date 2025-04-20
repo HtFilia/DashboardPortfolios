@@ -1,12 +1,14 @@
 import asyncio
 import signal
 import sys
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Set
 from contextlib import asynccontextmanager
 import logging
-from simulator import PriceSimulator
+from simulator import MarketSimulator
+from models import AssetClass
+import json
 
 # Configure logging to stdout
 logging.basicConfig(
@@ -23,7 +25,7 @@ active_connections: List[WebSocket] = []
 selected_strategies: Set[int] = set()
 broadcast_task = None
 stop_broadcast = False
-price_simulator = None
+market_simulator = None
 
 # Initial prices
 initial_prices = {
@@ -34,7 +36,7 @@ initial_prices = {
     "AMZN": 170.0
 }
 
-# Sample data (same as frontend for now)
+# Sample data with asset classes
 strategies = [
     {
         "id": 1,
@@ -47,11 +49,13 @@ strategies = [
                     "bloombergTicker": "AAPL US",
                     "reutersTicker": "AAPL.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 100,
-                "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "lastPrice": initial_prices["AAPL"],
+                "openingPrice": initial_prices["AAPL"],
+                "entryPrice": initial_prices["AAPL"]
             },
             {
                 "instrument": {
@@ -59,11 +63,13 @@ strategies = [
                     "bloombergTicker": "MSFT US",
                     "reutersTicker": "MSFT.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 50,
-                "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "lastPrice": initial_prices["MSFT"],
+                "openingPrice": initial_prices["MSFT"],
+                "entryPrice": initial_prices["MSFT"]
             },
             {
                 "instrument": {
@@ -71,11 +77,13 @@ strategies = [
                     "bloombergTicker": "GOOGL US",
                     "reutersTicker": "GOOGL.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 25,
-                "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "lastPrice": initial_prices["GOOGL"],
+                "openingPrice": initial_prices["GOOGL"],
+                "entryPrice": initial_prices["GOOGL"]
             }
         ],
         "riskMetrics": {
@@ -83,7 +91,8 @@ strategies = [
             "var99": 0.0,
             "maxDrawdown": 0.0,
             "exposure": 0.0,
-            "riskLimit": 0.0
+            "riskLimit": 0.0,
+            "volatility": 0.0
         }
     },
     {
@@ -97,11 +106,13 @@ strategies = [
                     "bloombergTicker": "MSFT US",
                     "reutersTicker": "MSFT.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 75,
-                "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "lastPrice": initial_prices["MSFT"],
+                "openingPrice": initial_prices["MSFT"],
+                "entryPrice": initial_prices["MSFT"]
             },
             {
                 "instrument": {
@@ -109,11 +120,13 @@ strategies = [
                     "bloombergTicker": "TSLA US",
                     "reutersTicker": "TSLA.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 30,
-                "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "lastPrice": initial_prices["TSLA"],
+                "openingPrice": initial_prices["TSLA"],
+                "entryPrice": initial_prices["TSLA"]
             },
             {
                 "instrument": {
@@ -121,11 +134,13 @@ strategies = [
                     "bloombergTicker": "AMZN US",
                     "reutersTicker": "AMZN.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 40,
-                "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "lastPrice": initial_prices["AMZN"],
+                "openingPrice": initial_prices["AMZN"],
+                "entryPrice": initial_prices["AMZN"]
             }
         ],
         "riskMetrics": {
@@ -133,7 +148,8 @@ strategies = [
             "var99": 0.0,
             "maxDrawdown": 0.0,
             "exposure": 0.0,
-            "riskLimit": 0.0
+            "riskLimit": 0.0,
+            "volatility": 0.0
         }
     },
     {
@@ -147,11 +163,13 @@ strategies = [
                     "bloombergTicker": "AAPL US",
                     "reutersTicker": "AAPL.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 50,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "totalPnL": 0.0,
+                "lastPrice": initial_prices["AAPL"]
             },
             {
                 "instrument": {
@@ -159,11 +177,13 @@ strategies = [
                     "bloombergTicker": "MSFT US",
                     "reutersTicker": "MSFT.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 100,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "totalPnL": 0.0,
+                "lastPrice": initial_prices["MSFT"]
             },
             {
                 "instrument": {
@@ -171,11 +191,13 @@ strategies = [
                     "bloombergTicker": "AMZN US",
                     "reutersTicker": "AMZN.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 20,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "totalPnL": 0.0,
+                "lastPrice": initial_prices["AMZN"]
             }
         ],
         "riskMetrics": {
@@ -183,7 +205,8 @@ strategies = [
             "var99": 0.0,
             "maxDrawdown": 0.0,
             "exposure": 0.0,
-            "riskLimit": 0.0
+            "riskLimit": 0.0,
+            "volatility": 0.0
         }
     },
     {
@@ -197,11 +220,13 @@ strategies = [
                     "bloombergTicker": "TSLA US",
                     "reutersTicker": "TSLA.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 50,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "totalPnL": 0.0,
+                "lastPrice": initial_prices["TSLA"]
             },
             {
                 "instrument": {
@@ -209,11 +234,13 @@ strategies = [
                     "bloombergTicker": "GOOGL US",
                     "reutersTicker": "GOOGL.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 40,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "totalPnL": 0.0,
+                "lastPrice": initial_prices["GOOGL"]
             },
             {
                 "instrument": {
@@ -221,11 +248,13 @@ strategies = [
                     "bloombergTicker": "AMZN US",
                     "reutersTicker": "AMZN.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 30,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "totalPnL": 0.0,
+                "lastPrice": initial_prices["AMZN"]
             }
         ],
         "riskMetrics": {
@@ -233,7 +262,8 @@ strategies = [
             "var99": 0.0,
             "maxDrawdown": 0.0,
             "exposure": 0.0,
-            "riskLimit": 0.0
+            "riskLimit": 0.0,
+            "volatility": 0.0
         }
     },
     {
@@ -247,11 +277,13 @@ strategies = [
                     "bloombergTicker": "AAPL US",
                     "reutersTicker": "AAPL.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 100,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "totalPnL": 0.0,
+                "lastPrice": initial_prices["AAPL"]
             },
             {
                 "instrument": {
@@ -259,11 +291,13 @@ strategies = [
                     "bloombergTicker": "TSLA US",
                     "reutersTicker": "TSLA.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": -100,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "totalPnL": 0.0,
+                "lastPrice": initial_prices["TSLA"]
             },
             {
                 "instrument": {
@@ -271,11 +305,13 @@ strategies = [
                     "bloombergTicker": "GOOGL US",
                     "reutersTicker": "GOOGL.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 50,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "totalPnL": 0.0,
+                "lastPrice": initial_prices["GOOGL"]
             },
             {
                 "instrument": {
@@ -283,11 +319,13 @@ strategies = [
                     "bloombergTicker": "AMZN US",
                     "reutersTicker": "AMZN.O",
                     "instrumentType": "Equity",
-                    "currency": "USD"
+                    "currency": "USD",
+                    "assetClass": AssetClass.TECH.value
                 },
                 "quantity": -50,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0
+                "totalPnL": 0.0,
+                "lastPrice": initial_prices["AMZN"]
             }
         ],
         "riskMetrics": {
@@ -295,7 +333,8 @@ strategies = [
             "var99": 0.0,
             "maxDrawdown": 0.0,
             "exposure": 0.0,
-            "riskLimit": 0.0
+            "riskLimit": 0.0,
+            "volatility": 0.0
         }
     }
 ]
@@ -305,29 +344,23 @@ async def broadcast_updates():
     while not stop_broadcast:
         try:
             # Update prices
-            new_prices = price_simulator.update_prices()
+            new_prices = market_simulator.update_prices()
             
             # Update positions and metrics
             for strategy in strategies:
                 # Update position P&L
                 for position in strategy["positions"]:
                     symbol = position["instrument"]["internalCode"]
-                    old_price = position.get("last_price", initial_prices[symbol])
-                    new_price = new_prices[symbol]
-                    
-                    # Calculate P&L
-                    price_change = new_price - old_price
-                    position["dailyPnL"] = position["quantity"] * price_change
-                    position["totalPnL"] += position["dailyPnL"]
-                    position["last_price"] = new_price
+                    position["lastPrice"] = new_prices[symbol]
                 
                 # Update strategy metrics
-                metrics = price_simulator.calculate_position_metrics(strategy["positions"])
+                metrics = market_simulator.calculate_position_metrics(strategy["positions"])
                 strategy["riskMetrics"] = {
                     "var95": metrics["var95"],
                     "var99": metrics["var99"],
                     "maxDrawdown": metrics["max_drawdown"],
                     "exposure": metrics["exposure"],
+                    "volatility": metrics["volatility"],
                     "riskLimit": metrics["risk_limit"]
                 }
 
@@ -385,9 +418,9 @@ def handle_shutdown(signum, frame):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global broadcast_task, price_simulator
-    # Initialize price simulator
-    price_simulator = PriceSimulator({}, initial_prices)
+    global broadcast_task, market_simulator
+    # Initialize market simulator
+    market_simulator = MarketSimulator({}, initial_prices)
     
     # Start broadcast task
     broadcast_task = asyncio.create_task(broadcast_updates())
@@ -423,34 +456,36 @@ async def websocket_endpoint(websocket: WebSocket):
         initial_message = {
             "type": "initial",
             "data": {
+                "prices": market_simulator.current_prices,
                 "strategies": strategies
             }
         }
+        logger.debug(f"Sending initial data: {json.dumps(initial_message, indent=2)}")
         await websocket.send_json(initial_message)
         
         # Handle messages from client
         while True:
             try:
                 data = await websocket.receive_json()
-                if data["type"] == "toggle":
-                    strategy_id = data["data"]["strategyId"]
-                    if strategy_id in selected_strategies:
-                        selected_strategies.remove(strategy_id)
-                    else:
-                        selected_strategies.add(strategy_id)
+                logger.debug(f"Received message from client: {json.dumps(data, indent=2)}")
+                
+                if data["type"] == "toggle_strategy":
+                    strategy_id = data["strategyId"]
+                    for strategy in strategies:
+                        if strategy["id"] == strategy_id:
+                            strategy["selected"] = not strategy["selected"]
+                            logger.info(f"Toggled strategy {strategy['name']} to {strategy['selected']}")
+                            break
+                
             except Exception as e:
-                logger.error(f"Error handling message: {e}")
+                logger.error(f"Error handling client message: {e}", exc_info=True)
                 break
-    except WebSocketDisconnect:
-        logger.info("Client disconnected")
+                
     except Exception as e:
-        logger.error(f"WebSocket error: {e}")
+        logger.error(f"WebSocket error: {e}", exc_info=True)
     finally:
         active_connections.remove(websocket)
-        try:
-            await websocket.close()
-        except Exception as e:
-            logger.error(f"Error closing WebSocket: {e}")
+        logger.info(f"WebSocket connection closed. Remaining connections: {len(active_connections)}")
 
 if __name__ == "__main__":
     import uvicorn
