@@ -1,85 +1,110 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
-import HelloWorld from './components/HelloWorld.vue'
 </script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-
-      <nav>
-        <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/about">About</RouterLink>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>Portfolio Dashboard</h1>
+      </div>
+      <nav class="sidebar-nav">
+        <RouterLink to="/" class="nav-item">
+          <span class="nav-icon">📊</span>
+          <span>Dashboard</span>
+        </RouterLink>
       </nav>
-    </div>
-  </header>
+    </aside>
 
-  <RouterView />
+    <main class="main">
+      <RouterView />
+    </main>
+  </div>
 </template>
 
-<style scoped>
-header {
-  line-height: 1.5;
-  max-height: 100vh;
+<style>
+:root {
+  --primary-color: #2c3e50;
+  --secondary-color: #6c757d;
+  --background-color: #f5f7fa;
+  --sidebar-width: 180px;
+  --sidebar-bg: #ffffff;
 }
 
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-nav {
-  width: 100%;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 2rem;
+body {
+  font-family: Arial, sans-serif;
+  background-color: var(--background-color);
 }
 
-nav a.router-link-exact-active {
-  color: var(--color-text);
+.app {
+  min-height: 100vh;
+  display: flex;
 }
 
-nav a.router-link-exact-active:hover {
-  background-color: transparent;
+.sidebar {
+  width: var(--sidebar-width);
+  background-color: var(--sidebar-bg);
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-nav a {
-  display: inline-block;
-  padding: 0 1rem;
-  border-left: 1px solid var(--color-border);
+.sidebar-header {
+  padding: 1rem;
+  border-bottom: 1px solid #e9ecef;
 }
 
-nav a:first-of-type {
-  border: 0;
+.sidebar-header h1 {
+  font-size: 1.2rem;
+  color: var(--primary-color);
 }
 
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
+.sidebar-nav {
+  padding: 0.5rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
 
-  .logo {
-    margin: 0 2rem 0 0;
-  }
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  color: var(--secondary-color);
+  text-decoration: none;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+}
 
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
+.nav-item:hover {
+  background-color: #f8f9fa;
+  color: var(--primary-color);
+}
 
-  nav {
-    text-align: left;
-    margin-left: -1rem;
-    font-size: 1rem;
+.nav-item.router-link-active {
+  background-color: #f8f9fa;
+  color: var(--primary-color);
+  border-left: 3px solid var(--primary-color);
+}
 
-    padding: 1rem 0;
-    margin-top: 1rem;
-  }
+.nav-icon {
+  font-size: 1rem;
+}
+
+.main {
+  flex: 1;
+  margin-left: var(--sidebar-width);
+  padding: 1.5rem;
 }
 </style>
