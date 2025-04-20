@@ -4,6 +4,7 @@ export interface Instrument {
     reutersTicker: string;
     instrumentType: string;
     currency: string;
+    assetClass: string;
 }
 
 export interface Position {
@@ -11,6 +12,10 @@ export interface Position {
     quantity: number;
     dailyPnL: number;
     totalPnL: number;
+    lastPrice: number;
+    openingPrice: number;
+    entryPrice: number;
+    positionValue: number;
 }
 
 export interface RiskMetrics {
@@ -19,6 +24,7 @@ export interface RiskMetrics {
     maxDrawdown: number;
     exposure: number;
     riskLimit: number;
+    volatility: number;
 }
 
 export interface Strategy {
@@ -34,5 +40,6 @@ export interface WebSocketMessage {
     data: {
         strategies?: Strategy[];
         strategyId?: number;
+        prices?: Record<string, number>;
     };
 } 

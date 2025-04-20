@@ -1,4 +1,4 @@
-import { ref, onUnmounted } from 'vue';
+import { ref } from 'vue';
 import type { WebSocketMessage } from '@/types';
 
 const ws = ref<WebSocket | null>(null);
@@ -54,17 +54,17 @@ export function useWebSocket() {
         }
     };
 
-    // Cleanup on unmount
-    onUnmounted(() => {
+    const cleanup = () => {
         disconnect();
         messageHandlers.value.clear();
-    });
+    };
 
     return {
         connect,
         disconnect,
         onUpdate,
-        toggleStrategy
+        toggleStrategy,
+        cleanup
     };
 }
 

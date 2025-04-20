@@ -9,6 +9,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   websocketService.disconnect();
+  websocketService.cleanup();
 });
 </script>
 

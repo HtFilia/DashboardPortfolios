@@ -36,6 +36,36 @@ initial_prices = {
     "AMZN": 170.0
 }
 
+# Historical entry prices and initial P&L for each strategy
+entry_prices = {
+    "Long-Term Growth": {
+        "AAPL": {"price": 150.0, "initialPnL": 2500.0},  # Entered earlier when price was lower
+        "MSFT": {"price": 320.0, "initialPnL": 1500.0},
+        "GOOGL": {"price": 120.0, "initialPnL": 500.0}
+    },
+    "Value Investing": {
+        "MSFT": {"price": 340.0, "initialPnL": 750.0},  # Entered recently
+        "TSLA": {"price": 180.0, "initialPnL": 600.0},  # Entered at a dip
+        "AMZN": {"price": 160.0, "initialPnL": 400.0}
+    },
+    "Dividend Focus": {
+        "AAPL": {"price": 170.0, "initialPnL": 1000.0},  # Entered during a pullback
+        "MSFT": {"price": 330.0, "initialPnL": 2000.0},
+        "AMZN": {"price": 165.0, "initialPnL": 100.0}
+    },
+    "Sector Rotation": {
+        "TSLA": {"price": 190.0, "initialPnL": 500.0},  # Entered after a correction
+        "GOOGL": {"price": 130.0, "initialPnL": 400.0},
+        "AMZN": {"price": 168.0, "initialPnL": 60.0}
+    },
+    "Market Neutral": {
+        "AAPL": {"price": 175.0, "initialPnL": 500.0},  # Long position
+        "TSLA": {"price": 195.0, "initialPnL": -500.0},  # Short position
+        "GOOGL": {"price": 135.0, "initialPnL": 250.0},  # Long position
+        "AMZN": {"price": 172.0, "initialPnL": -100.0}   # Short position
+    }
+}
+
 # Sample data with asset classes
 strategies = [
     {
@@ -53,9 +83,11 @@ strategies = [
                     "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 100,
+                "dailyPnL": 0.0,
+                "totalPnL": entry_prices["Long-Term Growth"]["AAPL"]["initialPnL"],
                 "lastPrice": initial_prices["AAPL"],
                 "openingPrice": initial_prices["AAPL"],
-                "entryPrice": initial_prices["AAPL"]
+                "entryPrice": entry_prices["Long-Term Growth"]["AAPL"]["price"]
             },
             {
                 "instrument": {
@@ -67,9 +99,11 @@ strategies = [
                     "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 50,
+                "dailyPnL": 0.0,
+                "totalPnL": entry_prices["Long-Term Growth"]["MSFT"]["initialPnL"],
                 "lastPrice": initial_prices["MSFT"],
                 "openingPrice": initial_prices["MSFT"],
-                "entryPrice": initial_prices["MSFT"]
+                "entryPrice": entry_prices["Long-Term Growth"]["MSFT"]["price"]
             },
             {
                 "instrument": {
@@ -81,9 +115,11 @@ strategies = [
                     "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 25,
+                "dailyPnL": 0.0,
+                "totalPnL": entry_prices["Long-Term Growth"]["GOOGL"]["initialPnL"],
                 "lastPrice": initial_prices["GOOGL"],
                 "openingPrice": initial_prices["GOOGL"],
-                "entryPrice": initial_prices["GOOGL"]
+                "entryPrice": entry_prices["Long-Term Growth"]["GOOGL"]["price"]
             }
         ],
         "riskMetrics": {
@@ -110,9 +146,11 @@ strategies = [
                     "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 75,
+                "dailyPnL": 0.0,
+                "totalPnL": entry_prices["Value Investing"]["MSFT"]["initialPnL"],
                 "lastPrice": initial_prices["MSFT"],
                 "openingPrice": initial_prices["MSFT"],
-                "entryPrice": initial_prices["MSFT"]
+                "entryPrice": entry_prices["Value Investing"]["MSFT"]["price"]
             },
             {
                 "instrument": {
@@ -124,9 +162,11 @@ strategies = [
                     "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 30,
+                "dailyPnL": 0.0,
+                "totalPnL": entry_prices["Value Investing"]["TSLA"]["initialPnL"],
                 "lastPrice": initial_prices["TSLA"],
                 "openingPrice": initial_prices["TSLA"],
-                "entryPrice": initial_prices["TSLA"]
+                "entryPrice": entry_prices["Value Investing"]["TSLA"]["price"]
             },
             {
                 "instrument": {
@@ -138,9 +178,11 @@ strategies = [
                     "assetClass": AssetClass.TECH.value
                 },
                 "quantity": 40,
+                "dailyPnL": 0.0,
+                "totalPnL": entry_prices["Value Investing"]["AMZN"]["initialPnL"],
                 "lastPrice": initial_prices["AMZN"],
                 "openingPrice": initial_prices["AMZN"],
-                "entryPrice": initial_prices["AMZN"]
+                "entryPrice": entry_prices["Value Investing"]["AMZN"]["price"]
             }
         ],
         "riskMetrics": {
@@ -168,8 +210,10 @@ strategies = [
                 },
                 "quantity": 50,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0,
-                "lastPrice": initial_prices["AAPL"]
+                "totalPnL": entry_prices["Dividend Focus"]["AAPL"]["initialPnL"],
+                "lastPrice": initial_prices["AAPL"],
+                "openingPrice": initial_prices["AAPL"],
+                "entryPrice": entry_prices["Dividend Focus"]["AAPL"]["price"]
             },
             {
                 "instrument": {
@@ -182,8 +226,10 @@ strategies = [
                 },
                 "quantity": 100,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0,
-                "lastPrice": initial_prices["MSFT"]
+                "totalPnL": entry_prices["Dividend Focus"]["MSFT"]["initialPnL"],
+                "lastPrice": initial_prices["MSFT"],
+                "openingPrice": initial_prices["MSFT"],
+                "entryPrice": entry_prices["Dividend Focus"]["MSFT"]["price"]
             },
             {
                 "instrument": {
@@ -196,8 +242,10 @@ strategies = [
                 },
                 "quantity": 20,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0,
-                "lastPrice": initial_prices["AMZN"]
+                "totalPnL": entry_prices["Dividend Focus"]["AMZN"]["initialPnL"],
+                "lastPrice": initial_prices["AMZN"],
+                "openingPrice": initial_prices["AMZN"],
+                "entryPrice": entry_prices["Dividend Focus"]["AMZN"]["price"]
             }
         ],
         "riskMetrics": {
@@ -225,8 +273,10 @@ strategies = [
                 },
                 "quantity": 50,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0,
-                "lastPrice": initial_prices["TSLA"]
+                "totalPnL": entry_prices["Sector Rotation"]["TSLA"]["initialPnL"],
+                "lastPrice": initial_prices["TSLA"],
+                "openingPrice": initial_prices["TSLA"],
+                "entryPrice": entry_prices["Sector Rotation"]["TSLA"]["price"]
             },
             {
                 "instrument": {
@@ -239,8 +289,10 @@ strategies = [
                 },
                 "quantity": 40,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0,
-                "lastPrice": initial_prices["GOOGL"]
+                "totalPnL": entry_prices["Sector Rotation"]["GOOGL"]["initialPnL"],
+                "lastPrice": initial_prices["GOOGL"],
+                "openingPrice": initial_prices["GOOGL"],
+                "entryPrice": entry_prices["Sector Rotation"]["GOOGL"]["price"]
             },
             {
                 "instrument": {
@@ -253,8 +305,10 @@ strategies = [
                 },
                 "quantity": 30,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0,
-                "lastPrice": initial_prices["AMZN"]
+                "totalPnL": entry_prices["Sector Rotation"]["AMZN"]["initialPnL"],
+                "lastPrice": initial_prices["AMZN"],
+                "openingPrice": initial_prices["AMZN"],
+                "entryPrice": entry_prices["Sector Rotation"]["AMZN"]["price"]
             }
         ],
         "riskMetrics": {
@@ -282,8 +336,10 @@ strategies = [
                 },
                 "quantity": 100,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0,
-                "lastPrice": initial_prices["AAPL"]
+                "totalPnL": entry_prices["Market Neutral"]["AAPL"]["initialPnL"],
+                "lastPrice": initial_prices["AAPL"],
+                "openingPrice": initial_prices["AAPL"],
+                "entryPrice": entry_prices["Market Neutral"]["AAPL"]["price"]
             },
             {
                 "instrument": {
@@ -296,8 +352,10 @@ strategies = [
                 },
                 "quantity": -100,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0,
-                "lastPrice": initial_prices["TSLA"]
+                "totalPnL": entry_prices["Market Neutral"]["TSLA"]["initialPnL"],
+                "lastPrice": initial_prices["TSLA"],
+                "openingPrice": initial_prices["TSLA"],
+                "entryPrice": entry_prices["Market Neutral"]["TSLA"]["price"]
             },
             {
                 "instrument": {
@@ -310,8 +368,10 @@ strategies = [
                 },
                 "quantity": 50,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0,
-                "lastPrice": initial_prices["GOOGL"]
+                "totalPnL": entry_prices["Market Neutral"]["GOOGL"]["initialPnL"],
+                "lastPrice": initial_prices["GOOGL"],
+                "openingPrice": initial_prices["GOOGL"],
+                "entryPrice": entry_prices["Market Neutral"]["GOOGL"]["price"]
             },
             {
                 "instrument": {
@@ -324,8 +384,10 @@ strategies = [
                 },
                 "quantity": -50,
                 "dailyPnL": 0.0,
-                "totalPnL": 0.0,
-                "lastPrice": initial_prices["AMZN"]
+                "totalPnL": entry_prices["Market Neutral"]["AMZN"]["initialPnL"],
+                "lastPrice": initial_prices["AMZN"],
+                "openingPrice": initial_prices["AMZN"],
+                "entryPrice": entry_prices["Market Neutral"]["AMZN"]["price"]
             }
         ],
         "riskMetrics": {
